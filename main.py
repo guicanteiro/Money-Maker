@@ -39,8 +39,6 @@ def montar_imagem():
         return send_file(output_path, mimetype="image/jpeg")
 
     except Exception as e:
-        import traceback
-            traceback.print_exc()
         return {"error": str(e)}, 500
 
 
