@@ -21,10 +21,18 @@ def montar_imagem():
 
         for i, url in enumerate(urls[:3]):
             try:
-                res = requests.get(url, timeout=5)
+                headers = {'User-Agent': 'Mozilla/5.0'}
+                res = requests.get(url, headers=headers, timeout=5)
                 res.raise_for_status()
+
+                content_type = res.headers.get("Content-Type", "")
+                print(f"[DEBUG] {url} content-type: {content_type}")
+                if "image" not in content_type:
+                    raise ValueError("URL não retornou uma imagem")
+
                 img = Image.open(BytesIO(res.content)).convert("RGB")
                 img = ImageOps.fit(img, (final_width, img_height), Image.ANTIALIAS)
+
             except Exception as e:
                 print(f"[FALHA] Não foi possível carregar imagem {i+1}: {e}")
                 img = Image.new("RGB", (final_width, img_height), (50, 50, 50))  # fallback
