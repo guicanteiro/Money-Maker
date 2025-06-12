@@ -1,7 +1,7 @@
-from flask import Flask, request, send_file, jsonify
+from flask import Flask, request, send_file
 from PIL import Image, ImageOps
+import requests
 from io import BytesIO
-import base64
 import os
 
 app = Flask(__name__)
@@ -9,35 +9,30 @@ app = Flask(__name__)
 @app.route('/montar', methods=['POST'])
 def montar_imagem():
     try:
-        images = request.json.get("images", [])
-        if not images:
-            return jsonify({"error": "No images provided."}), 400
+        urls = request.json.get("image_urls", [])
+        if not urls:
+            return {"error": "No image URLs provided."}, 400
 
         final_width = 1080
         final_height = 1920
-        num_imgs = len(images)
-        if num_imgs == 0:
-            return jsonify({"error": "Empty image list"}), 400
-
+        num_imgs = min(len(urls), 3)
         img_height = final_height // num_imgs
         final_img = Image.new("RGB", (final_width, final_height), (0, 0, 0))
 
-        for i, item in enumerate(images[:3]):  # Máximo 3 imagens
+        for i, url in enumerate(urls[:3]):
             try:
-                data_uri = item.get('data')
-                if not data_uri or "base64," not in data_uri:
-                    raise ValueError("Data URI inválido")
+                print(f"Carregando imagem {i+1} de {url}")
+                res = requests.get(url, timeout=10)
+                res.raise_for_status()
 
-                b64data = data_uri.split(",")[1]
-                img_bytes = BytesIO(base64.b64decode(b64data))
-                img = Image.open(img_bytes).convert("RGB")
-                img = ImageOps.fit(img, (final_width, img_height), Image.ANTIALIAS)
+                img = Image.open(BytesIO(res.content)).convert("RGB")
+                img = ImageOps.fit(img, (final_width, img_height), Image.LANCZOS)
+                final_img.paste(img, (0, i * img_height))
 
             except Exception as e:
-                print(f"[ERRO] Imagem {i+1} falhou: {e}")
-                img = Image.new("RGB", (final_width, img_height), (80, 80, 80))  # fallback cinza escuro
-
-            final_img.paste(img, (0, i * img_height))
+                print(f"[ERRO] Imagem {i+1}: {e}")
+                fallback = Image.new("RGB", (final_width, img_height), (30, 30, 30))
+                final_img.paste(fallback, (0, i * img_height))
 
         path = "/tmp/montagem_final.jpg"
         final_img.save(path)
@@ -46,7 +41,7 @@ def montar_imagem():
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return {"error": str(e)}, 500
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 10000))
