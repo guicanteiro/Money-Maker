@@ -1,4 +1,4 @@
-from flask import Flask, request, send_file
+from flask import Flask, request, send_file, jsonify
 from PIL import Image, ImageOps
 from io import BytesIO
 import base64
@@ -11,34 +11,42 @@ def montar_imagem():
     try:
         images = request.json.get("images", [])
         if not images:
-            return {"error": "No images provided."}, 400
+            return jsonify({"error": "No images provided."}), 400
 
         final_width = 1080
         final_height = 1920
         num_imgs = len(images)
+        if num_imgs == 0:
+            return jsonify({"error": "Empty image list"}), 400
+
         img_height = final_height // num_imgs
         final_img = Image.new("RGB", (final_width, final_height), (0, 0, 0))
 
-        for i, item in enumerate(images[:3]):  # máximo de 3 imagens
+        for i, item in enumerate(images[:3]):  # Máximo 3 imagens
             try:
-                b64data = item['data'].split(",")[1]  # remove 'data:image/jpeg;base64,'
+                data_uri = item.get('data')
+                if not data_uri or "base64," not in data_uri:
+                    raise ValueError("Data URI inválido")
+
+                b64data = data_uri.split(",")[1]
                 img_bytes = BytesIO(base64.b64decode(b64data))
                 img = Image.open(img_bytes).convert("RGB")
                 img = ImageOps.fit(img, (final_width, img_height), Image.ANTIALIAS)
+
             except Exception as e:
-                print(f"[FALHA] Erro ao processar imagem {i+1}: {e}")
-                img = Image.new("RGB", (final_width, img_height), (50, 50, 50))  # imagem fallback cinza
+                print(f"[ERRO] Imagem {i+1} falhou: {e}")
+                img = Image.new("RGB", (final_width, img_height), (80, 80, 80))  # fallback cinza escuro
 
             final_img.paste(img, (0, i * img_height))
 
-        output_path = "/tmp/montagem_final.jpg"
-        final_img.save(output_path)
-        return send_file(output_path, mimetype="image/jpeg")
+        path = "/tmp/montagem_final.jpg"
+        final_img.save(path)
+        return send_file(path, mimetype="image/jpeg")
 
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return {"error": str(e)}, 500
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 10000))
