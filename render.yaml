@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: montagem-reels
+    env: python
+    plan: free
+    buildCommand: ""
+    startCommand: "python main.py"
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 10000
